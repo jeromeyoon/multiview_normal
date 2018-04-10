@@ -123,8 +123,8 @@ class DCGAN(object):
                 batch_files = shuffle[idx*config.batch_size:(idx+1)*config.batch_size]
                 batches = [get_image(train_input[batch_file], train_gt[batch_file],self.image_size,is_crop=self.is_crop) for batch_file in batch_files]
 	        batches = np.array(batches)
-                batch_images = np.array(batches[:,:,:,:4]).astype(np.float32)
-                batchlabel_images = np.array(batches[:,:,:,4:]).astype(np.float32)
+                batch_images = np.array(batches[:,:,:,0:4]).astype(np.float32)
+                batchlabel_images = np.array(batches[:,:,:,4:7]).astype(np.float32)
 	        batch_images = (batch_images)/127.5 -1.0		
 	        batchlabel_images = (batchlabel_images)/127.5 -1.0		
                 start_time = time.time()
@@ -135,7 +135,7 @@ class DCGAN(object):
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.6f L: %.6f d_loss:%.4f ang_loss:%.6f" \
 		         % (epoch, idx, batch_idxs,time.time() - start_time,g_err,L_err,d_err,ang_err))
 
-                if np.mod(global_step1.eval(),4000) ==0 and global_step1 != 0:
+                if np.mod(global_step1.eval(),1000) ==0 and global_step1 != 0:
 	            self.save(config.checkpoint_dir,global_step1)
 
     		counter = counter+1
