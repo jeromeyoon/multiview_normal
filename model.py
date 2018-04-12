@@ -46,7 +46,6 @@ class DCGAN(object):
 	net  = networks(64,self.df_dim)
      	self.G = net.generator(self.images) 
         self.G = self.G[-1]
-
 	################ Discriminator Loss ######################
         self.D = net.discriminator(self.normal_images,self.keep_prob)
 	self.D_  = net.discriminator(self.G,self.keep_prob,reuse=True)
@@ -135,7 +134,7 @@ class DCGAN(object):
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.6f L: %.6f d_loss:%.4f ang_loss:%.6f" \
 		         % (epoch, idx, batch_idxs,time.time() - start_time,g_err,L_err,d_err,ang_err))
 
-                if np.mod(global_step1.eval(),1000) ==0 and global_step1 != 0:
+                if np.mod(global_step1.eval(),100) ==0 and global_step1 != 0:
 	            self.save(config.checkpoint_dir,global_step1)
 
     		counter = counter+1
