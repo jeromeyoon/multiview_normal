@@ -20,7 +20,8 @@ def create_mask(images):
 
 def get_image(image_path,gt_path,image_size,is_crop=True):
     gt = imread(gt_path)
-    input_ =loadmat(image_path)
+    #input_ =loadmat(image_path)
+    input_ =imread(image_path)
     output = np.concatenate((input_,gt),axis=2)
     output = transform(output,image_size,is_crop)
     #gt =transform(imread(gt_path),image_size,randx,randy,is_crop)
@@ -70,7 +71,7 @@ def imread(path):
 def loadmat(path):
     tmp = scipy.io.loadmat(path)
     tmp = tmp['input_']
-    tmp = tmp.astype(np.float)
+    tmp = tmp[:,:,:3].astype(np.float)
     return tmp
        
 """

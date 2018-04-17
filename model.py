@@ -29,10 +29,8 @@ class DCGAN(object):
 	self.use_queue = True
 	self.mean_nir = -0.3313 #-1~1
 	self.dropout =0.7
-	self.loss ='L1'
-	self.lambda_d = 1
-	self.lambda_g_non = 1
-	self.lambda_g_d  =1
+	self.loss ='L2'
+	self.lambda_d = 100
 	self.input_type = 'single' #multi frequency
         self.list_val = [11,16,21,22,33,36,38,53,59,92]
 	self.pair = False
@@ -40,8 +38,8 @@ class DCGAN(object):
 	
     def build_model(self):
        
-        self.images = tf.placeholder(tf.float32,shape=[self.batch_size,64,64,4])
-	self.normal_images = tf.placeholder(tf.float32,shape=[self.batch_size,64,64,3])
+        self.images = tf.placeholder(tf.float32,shape=[self.batch_size,self.ir_image_shape[0],self.ir_image_shape[1],3])
+	self.normal_images = tf.placeholder(tf.float32,shape=[self.batch_size,self.normal_image_shape[0],self.normal_image_shape[1],3])
 	self.keep_prob = tf.placeholder(tf.float32)
 	net  = networks(64,self.df_dim)
      	self.G = net.generator(self.images) 
@@ -98,22 +96,23 @@ class DCGAN(object):
 	
         start_time = time.time()
 
-        if self.load(self.checkpoint_dir):
+        load,counter = self.load(self.checkpoint_dir)
+	pdb.set_trace()
+        if load:
             print(" [*] Load SUCCESS")
         else:
             print(" [!] Load failed...")
-
-        # loda training and validation dataset path
-	with open("./traininput_list.txt",'rb') as f:
+        
+	# loda training and validation dataset path
+	with open("./traininput_list_468.txt",'rb') as f:
             train_input = pickle.load(f)
 	train_input.sort()
-	with open("./traingt_list.txt",'rb') as f:
+	with open("./traingt_list_468.txt",'rb') as f:
             train_gt = pickle.load(f)
         train_gt.sort()
 
 	shuf = range(len(train_input))
 	random.shuffle(shuf)
-	counter = 1;
         for epoch in xrange(config.epoch):
 	    shuffle = np.random.permutation(range(len(train_input)))
 	    batch_idxs = min(len(train_input), config.train_size)/config.batch_size
@@ -122,18 +121,40 @@ class DCGAN(object):
                 batch_files = shuffle[idx*config.batch_size:(idx+1)*config.batch_size]
                 batches = [get_image(train_input[batch_file], train_gt[batch_file],self.image_size,is_crop=self.is_crop) for batch_file in batch_files]
 	        batches = np.array(batches)
-                batch_images = np.array(batches[:,:,:,0:4]).astype(np.float32)
-                batchlabel_images = np.array(batches[:,:,:,4:7]).astype(np.float32)
+                batch_images = np.array(batches[:,:,:,0:3]).astype(np.float32)
+                batchlabel_images = np.array(batches[:,:,:,3:6]).astype(np.float32)
+                #batch_images = np.array(batches[:,:,:,0:4]).astype(np.float32)
+                #batchlabel_images = np.array(batches[:,:,:,4:7]).astype(np.float32)
 	        batch_images = (batch_images)/127.5 -1.0		
 	        batchlabel_images = (batchlabel_images)/127.5 -1.0		
                 start_time = time.time()
 	        _,summary,d_err =self.sess.run([d_optim,self.d_sum,self.d_loss],feed_dict={self.images:batch_images,self.normal_images:batchlabel_images,self.keep_prob:self.dropout})
 		self.writer.add_summary(summary, counter)
-	        _,summary,g_err,L_err,ang_err =self.sess.run([g_optim,self.g_sum,self.g_loss,self.L_loss,self.ang_loss],feed_dict={self.images:batch_images,self.normal_images:batchlabel_images})
+	        _,summary,g_err,L_err,ang_err,output =self.sess.run([g_optim,self.g_sum,self.g_loss,self.L_loss,self.ang_loss,self.G],feed_dict={self.images:batch_images,self.normal_images:batchlabel_images})
 		self.writer.add_summary(summary, counter)
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.6f L: %.6f d_loss:%.4f ang_loss:%.6f" \
 		         % (epoch, idx, batch_idxs,time.time() - start_time,g_err,L_err,d_err,ang_err))
-
+		'''
+	        input1 = batch_images[0,:,:,0]
+		input1 = (input1+1.)/2.
+                scipy.misc.imsave('./input1.png', input1)
+	        input2 = batch_images[0,:,:,1]
+		input2 = (input2+1.)/2.
+                scipy.misc.imsave('./input2.png', input2)
+	        input3 = batch_images[0,:,:,2]
+		input3 = (input3+1.)/2.
+                scipy.misc.imsave('./input3.png', input3)
+	        input4 = batch_images[0,:,:,3]
+		input4 = (input4+1.)/2.
+                scipy.misc.imsave('./input4.png', input4)
+	        sample = output[0,:,:,:]
+		sample = np.squeeze(sample).astype(np.float32)
+                output = np.sqrt(np.sum(np.power(sample,2),axis=2))
+		output = np.expand_dims(output,axis=-1)
+		output = sample/output
+		output = (output+1.)/2.
+                scipy.misc.imsave('./sample.png', output)
+		'''
                 if np.mod(global_step1.eval(),100) ==0 and global_step1 != 0:
 	            self.save(config.checkpoint_dir,global_step1)
 
@@ -148,18 +169,24 @@ class DCGAN(object):
 
         self.saver.save(self.sess,
                         os.path.join(checkpoint_dir, model_name),
-                        global_step=step)
 
+                        global_step=step)
     def load(self, checkpoint_dir):
         print(" [*] Reading checkpoints...")
-
+        import re
         model_dir = "%s_%s" % (self.dataset_name,self.batch_size)
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
-
-        ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-        if ckpt and ckpt.model_checkpoint_path:
-            ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
-            return True
+	ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+	pdb.set_trace()
+	if ckpt and ckpt.model_checkpoint_path:
+            self.saver.restore(self.sess,ckpt.all_model_checkpoint_paths[-1])
+	    counter = ckpt.all_model_checkpoint_paths[-1]
+            counter = counter[37:].encode('utf-8')
+	    #counter = int(next(re.finditer("(\d+)(?!.*\d)",ckpt_name)).group(0))
+            print("[*] Success to read ")
+            #print("[*] Success to read {}".format(ckpt_name))
+            return True,int(counter)
         else:
-            return False
+            print(" [*] Failed to find a checkpoint")
+            return False, 0
+

@@ -2,7 +2,7 @@ import numpy as np
 import os
 import tensorflow as tf
 import random,time,json,pdb,scipy.misc,glob
-from model import DCGAN
+from model_queue import DCGAN
 from test import EVAL
 from utils import pp, save_images, to_json, make_gif, merge, imread, get_image
 from numpy import inf
@@ -10,11 +10,11 @@ from sorting import natsorted
 import matplotlib.image as mpimg
 from scipy import ndimage
 flags = tf.app.flags
-flags.DEFINE_integer("epoch", 20, "Epoch to train [25]")
+flags.DEFINE_integer("epoch", 3, "Epoch to train [25]")
 flags.DEFINE_float("learning_rate", 0.00002, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
-flags.DEFINE_integer("batch_size", 32, "The size of batch images [64]")
+flags.DEFINE_integer("batch_size", 12, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 108, "The size of image to use (will be center cropped) [108]")
 flags.DEFINE_string("dataset", "0422", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
@@ -47,7 +47,7 @@ def main(_):
             dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size,\
 	    num_block = FLAGS.num_block,dataset_name=FLAGS.dataset,is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
         else:
-	    dcgan = EVAL(sess, batch_size=1,num_block=FLAGS.num_block,ir_image_shape=[None,None,4],dataset_name=FLAGS.dataset,\
+	    dcgan = EVAL(sess, batch_size=1,num_block=FLAGS.num_block,ir_image_shape=[None,None,3],dataset_name=FLAGS.dataset,\
                       is_crop=False, checkpoint_dir=FLAGS.checkpoint_dir)
 	    print('deep model test \n')
 
@@ -119,28 +119,27 @@ def main(_):
 		            os.makedirs(os.path.join(savepath,'%03d' %list_val[idx]))
 		        for idx2 in range(1,10): #tilt angles 
 			    print("Selected material %03d/%d" %(list_val[idx],idx2))
-			    img = './dataset/multi-view/testdata/%03d/%03d/patch_%06d.mat' %(obj,idx2,count)
+			    img = './dataset/multi-view/testdata_3579/%03d/%03d/patch_%06d.mat' %(obj,idx2,count)
 			    input_ = scipy.io.loadmat(img)
 			    input_ = input_['input_']
 	                    input_ = input_.astype(np.float)
-			    input_ = np.reshape(input_,(1,600,800,4))
+			    input_ = input_[:,:,0:3]
+			    input_ = np.reshape(input_,(1,600,800,3))
 			    input_ = input_/127.5 -1.0 
+		            pdb.set_trace()
 			    start_time = time.time() 
 	                    sample = sess.run([dcgan.G], feed_dict={dcgan.images:input_})
 			    print('time: %.8f' %(time.time()-start_time))     
 			    # normalization #
 			    sample = np.squeeze(sample).astype(np.float32)
-			    output = np.zeros((600,800,3)).astype(np.float32)
-			    output[:,:,0] = sample[:,:,0]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-			    output[:,:,1] = sample[:,:,1]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-			    output[:,:,2] = sample[:,:,2]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-   
-			    output[output ==inf] = 0.0
-			    sample = (output+1.)/2.
-			    if not os.path.exists(os.path.join(savepath,'%03d/%03d' %(count,idx2))):
-			        os.makedirs(os.path.join(savepath,'%03d/%03d' %(count,idx2)))
-			    savename = os.path.join(savepath, '%03d/%03d/multiview_normal.bmp' % (count,idx2))
-			    scipy.misc.imsave(savename, sample)
+                            output = np.sqrt(np.sum(np.power(sample,2),axis=2))
+			    output = np.expand_dims(output,axis=-1)
+			    output = sample/output
+			    output = (output+1.)/2.
+			    if not os.path.exists(os.path.join(savepath,'%03d/%03d' %(list_val[idx],idx2))):
+			        os.makedirs(os.path.join(savepath,'%03d/%03d' %(list_val[idx],idx2)))
+			    savename = os.path.join(savepath, '%03d/%03d/multiview_normal.bmp' % (list_val[idx],idx2))
+			    scipy.misc.imsave(savename, output)
                             count = count +1
                         obj = obj +1
 	        else:

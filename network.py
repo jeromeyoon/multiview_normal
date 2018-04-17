@@ -48,7 +48,7 @@ class networks(object):
     def generator(self,nir):
 
         layers=[]
-	layers_spec=[4,2]
+	layers_spec=[4,8,4,2]
 	
 	with tf.variable_scope('g%d' %(len(layers)+1)):
 	    net =lrelu(conv2d(nir,self.gf_dim*2))
@@ -160,7 +160,7 @@ class networks(object):
 
     def discriminator(self, image,keep_prob, reuse=False): 
 	layers=[]
-	layers_spec=[2,4]
+	layers_spec=[2,4,8]
 	with tf.variable_scope(tf.get_variable_scope(),reuse=reuse):
             net = lrelu(conv2d(image,self.df_dim,d_h=2,d_w=2)) 
 	    layers.append(net)

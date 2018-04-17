@@ -37,7 +37,7 @@ class EVAL(object):
         model_dir = "%s" % (self.dataset_name)
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
 	ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-	pdb.set_trace()	
+	pdb.set_trace()
 	if ckpt and ckpt.model_checkpoint_path:
             self.saver.restore(self.sess,ckpt.all_model_checkpoint_paths[-1])
 	    #counter = int(next(re.finditer("(\d+)(?!.*\d)",ckpt_name)).group(0))
