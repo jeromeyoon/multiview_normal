@@ -47,7 +47,7 @@ def main(_):
             dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size,\
 	    num_block = FLAGS.num_block,dataset_name=FLAGS.dataset,is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
         else:
-	    dcgan = EVAL(sess, batch_size=1,num_block=FLAGS.num_block,ir_image_shape=[None,None,3],dataset_name=FLAGS.dataset,\
+	    dcgan = EVAL(sess, batch_size=1,num_block=FLAGS.num_block,ir_image_shape=[None,None,1],dataset_name=FLAGS.dataset,\
                       is_crop=False, checkpoint_dir=FLAGS.checkpoint_dir)
 	    print('deep model test \n')
 
@@ -109,8 +109,9 @@ def main(_):
 
 	    elif VAL_OPTION ==2: # light source fixed
                 list_val = [11,16,21,22,33,36,38,53,59,92]
-		savepath ='./multiview_nir/L1_ang'
-		load = dcgan.load(FLAGS.checkpoint_dir)
+		load,iteration = dcgan.load(FLAGS.checkpoint_dir)
+	        pdb.set_trace()
+		savepath ='./singleview_nir/L2ang/%d' %iteration
 	        obj =1
 		count =1
                 if load:
@@ -123,10 +124,9 @@ def main(_):
 			    input_ = scipy.io.loadmat(img)
 			    input_ = input_['input_']
 	                    input_ = input_.astype(np.float)
-			    input_ = input_[:,:,0:3]
-			    input_ = np.reshape(input_,(1,600,800,3))
+			    #input_ = input_[:,:,0:3]
+			    input_ = np.reshape(input_,(1,600,800,4))
 			    input_ = input_/127.5 -1.0 
-		            pdb.set_trace()
 			    start_time = time.time() 
 	                    sample = sess.run([dcgan.G], feed_dict={dcgan.images:input_})
 			    print('time: %.8f' %(time.time()-start_time))     

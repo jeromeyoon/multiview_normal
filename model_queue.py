@@ -25,7 +25,7 @@ class DCGAN(object):
         self.dataset_name = dataset_name
 	self.num_block = num_block
         self.checkpoint_dir = checkpoint_dir
-	self.ir_image_shape=[64,64,4]
+	self.ir_image_shape=[64,64,1]
 	self.normal_image_shape=[64,64,3]
 	self.use_queue = True
 	self.mean_nir = -0.3313 #-1~1
@@ -50,7 +50,7 @@ class DCGAN(object):
 		print ' using queue loading'
 	        self.image_single = tf.placeholder(tf.float32,shape=self.ir_image_shape)
 	        self.normal_image_single = tf.placeholder(tf.float32,shape=self.normal_image_shape)
-                q = tf.RandomShuffleQueue(1000,100,[tf.float32,tf.float32],[[self.ir_image_shape[0],self.ir_image_shape[1],4],[self.normal_image_shape[0],self.normal_image_shape[1],3]])
+                q = tf.RandomShuffleQueue(1000,100,[tf.float32,tf.float32],[[self.ir_image_shape[0],self.ir_image_shape[1],1],[self.normal_image_shape[0],self.normal_image_shape[1],3]])
 	        self.enqueue_op = q.enqueue([self.image_single,self.normal_image_single])
 	        self.images,self.normal_images = q.dequeue_many(self.batch_size)
 
@@ -88,7 +88,7 @@ class DCGAN(object):
             self.L_loss = tf.reduce_mean(tf.square(self.G-self.normal_images))
 
         self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_[-1]), self.D_[-1])
-        self.gen_loss = self.g_loss + (self.L_loss+self.ang_loss)*100
+        self.gen_loss = self.g_loss + (self.L_loss+self.ang_loss)*1.0
 	t_vars = tf.trainable_variables()
         self.g_vars =[var for var in t_vars if 'g' in var.name]
 	self.d_vars =[var for var in t_vars if 'dis' in var.name]
@@ -112,20 +112,25 @@ class DCGAN(object):
 	
         start_time = time.time()
 
-        if self.load(self.checkpoint_dir):
+        load, counter =  self.load(self.checkpoint_dir)
+        if load:
             print(" [*] Load SUCCESS")
         else:
             print(" [!] Load failed...")
 
         # loda training and validation dataset path
+	'''
 	with open("./traininput_list_3579.txt",'rb') as f:
             train_input = pickle.load(f)
 	train_input.sort()
 	with open("./traingt_list_3579.txt",'rb') as f:
             train_gt = pickle.load(f)
         train_gt.sort()
-	#train_input =[data[idx] for idx in xrange(0,len(data))]
-	#train_gt =[data_label[idx] for idx in xrange(0,len(data))]
+	'''
+	data = json.load(open("/research2/ECCV_journal/trainingdata_json/0326/traininput.json"))
+        data_label = json.load(open("/research2/ECCV_journal/trainingdata_json/0326/traingt.json"))
+	train_input =[data[idx] for idx in xrange(0,len(data))]
+	train_gt =[data_label[idx] for idx in xrange(0,len(data))]
 
 	shuf = range(len(train_input))
 	random.shuffle(shuf)
@@ -154,8 +159,9 @@ class DCGAN(object):
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.6f L: %.6f d_loss:%.4f ang_loss:%.6f" \
 		         % (epoch, idx, batch_idxs,time.time() - start_time,g_err,L_err,d_err,ang_err))
 
-                if np.mod(global_step1.eval(),400) ==0 and global_step1 != 0:
-	            self.save(config.checkpoint_dir,global_step1)
+                if np.mod(global_step1.eval(),1000) ==0 and global_step1 != 0:
+	            self.save(config.checkpoint_dir,counter)
+	        counter +=1
 
 
 	'''
@@ -188,6 +194,24 @@ class DCGAN(object):
 
     def load(self, checkpoint_dir):
         print(" [*] Reading checkpoints...")
+        import re
+        model_dir = "%s_%s" % (self.dataset_name,self.batch_size)
+        checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
+	ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+	if ckpt and ckpt.model_checkpoint_path:
+            self.saver.restore(self.sess,ckpt.all_model_checkpoint_paths[-1])
+	    counter = ckpt.all_model_checkpoint_paths[-1]
+            counter = counter[37:].encode('utf-8')
+	    #counter = int(next(re.finditer("(\d+)(?!.*\d)",ckpt_name)).group(0))
+            print("[*] Success to read ")
+            #print("[*] Success to read {}".format(ckpt_name))
+            return True,int(counter)
+        else:
+            print(" [*] Failed to find a checkpoint")
+            return False, 0
+    ''''
+    def load(self, checkpoint_dir):
+        print(" [*] Reading checkpoints...")
 
         model_dir = "%s_%s" % (self.dataset_name,self.batch_size)
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
@@ -199,16 +223,18 @@ class DCGAN(object):
             return True
         else:
             return False
-
+    '''
 	
     def load_and_enqueue_single(self,coord,file_list,label_list,shuf,idx=0,num_thread=1):
 	count =0;
 	length = len(file_list)
 	while not coord.should_stop():
 	    i = (count*num_thread + idx) % length;
-            input_img = scipy.io.loadmat(file_list[shuf[i]])
-	    input_img = input_img['input_']
-	    gt_img = scipy.misc.imread(label_list[shuf[i]])
+            input_img = scipy.misc.imread(file_list[shuf[i]][0].encode("utf-8")).reshape([224,224,1]).astype(np.float32)
+	    gt_img = scipy.misc.imread(label_list[shuf[i]][0].encode("utf-8")).reshape([224,224,3]).astype(np.float32)
+            #input_img = scipy.io.loadmat(file_list[shuf[i]])
+	    #input_img = input_img['input_']
+	    #gt_img = scipy.misc.imread(label_list[shuf[i]])
 	    input_img = input_img/127.5 -1.
 	    gt_img = gt_img/127.5 -1.
 	
